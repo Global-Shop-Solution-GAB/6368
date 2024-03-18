@@ -1,0 +1,206 @@
+﻿Program.Sub.ScreenSU.Start
+Gui.Form_PY_Export..Create
+Gui.Form_PY_Export..Caption("NOVA Time Export")
+Gui.Form_PY_Export..Size(6645,2010)
+Gui.Form_PY_Export..MinX(0)
+Gui.Form_PY_Export..MinY(0)
+Gui.Form_PY_Export..Position(0,0)
+Gui.Form_PY_Export..BackColor(-2147483633)
+Gui.Form_PY_Export..MousePointer(0)
+Gui.Form_PY_Export..Event(UnLoad,Form_PY_Export_UnLoad)
+Gui.Form_PY_Export.lblBegDate.Create(Label,"Beginning Date",True,1935,255,0,180,195,True,0,"Arial",8,-2147483633,0)
+Gui.Form_PY_Export.dtpBegDate.Create(DatePicker)
+Gui.Form_PY_Export.dtpBegDate.Size(1935,285)
+Gui.Form_PY_Export.dtpBegDate.Position(180,420)
+Gui.Form_PY_Export.lblEndDate.Create(Label,"Ending Date",True,1935,255,0,2910,195,True,0,"Arial",8,-2147483633,0)
+Gui.Form_PY_Export.dtpEndDate.Create(DatePicker)
+Gui.Form_PY_Export.dtpEndDate.Size(1935,285)
+Gui.Form_PY_Export.dtpEndDate.Position(2910,420)
+Gui.Form_PY_Export.cmdExport.Create(Button)
+Gui.Form_PY_Export.cmdExport.Size(1095,375)
+Gui.Form_PY_Export.cmdExport.Position(180,990)
+Gui.Form_PY_Export.cmdExport.Caption("Export")
+Gui.Form_PY_Export.cmdExport.Event(Click,cmdExport_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+V.Global.sFileLocation.Declare(String,"")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+
+'creating custom dir that the payroll export file will be saved to
+F.Intrinsic.Control.CallSub(Create_Dir)
+
+Gui.Form_PY_Export..Show
+Gui.Form_PY_Export..AlwaysOnTop(True)
+Gui.Form_PY_Export..AlwaysOnTop(False)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6368_Export.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_PY_Export_UnLoad)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.cmdExport_Click.Start
+F.Intrinsic.Control.SetErrorHandler("cmdExport_Click_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.dStart.Declare(Date)
+V.Local.dEnd.Declare(Date)
+V.Local.sSql.Declare(String,"")
+V.Local.sYear.Declare(String,"")
+V.Local.sDateTime.Declare(String,"")
+V.Local.sTemp.Declare(String,"")
+V.Local.sData.Declare(String,"")
+V.Local.sFile.Declare(String,"")
+V.Local.i.Declare(Long,0)
+V.Local.sDate.Declare(String,"")
+V.Local.sCode.Declare(String,"")
+V.Local.sFilter.Declare(String,"")
+V.Local.sReg.Declare(String,"")
+
+Gui.Form_PY_Export..Visible(False)
+
+F.Intrinsic.UI.InvokeWaitDialog("Getting Payroll Data.....................")
+
+'setting dates from dp to variables
+V.Local.dStart.Set(V.Screen.Form_PY_Export!dtpBegDate.Value)
+V.Local.dEnd.Set(V.Screen.Form_PY_Export!dtpEndDate.Value)
+
+F.ODBC.Connection!Con.OpenCompanyConnection
+
+'getting selected year
+F.Intrinsic.String.Format(V.Local.dStart,"YYYY",V.Local.sYear)
+
+''getting gss earning codes
+'F.Intrinsic.String.Build("Select Pay_Category, rtrim(Descr) as Descr, '' as Code, Pay_Type, Incl_In_Ot_Ind From V_Payroll_pay_cats where year = '{0}' and Descr <> ''",V.Local.sYear,V.Local.sSql)
+'F.Data.DataTable.CreateFromSQL("ERNCODE","con",V.Local.sSql,True)
+
+'F.Data.DataView.Create("ERNCODE","VTemp",22,"Descr Like 'REG*'","")
+
+'F.Intrinsic.Control.If(V.DataView.ERNCODE!VTemp.RowCount--,<>,-1)
+'	V.Local.sReg.Set(V.DataView.ERNCODE!VTemp(V.DataView.ERNCODE!VTemp.RowCount--).Descr!fieldValTrim)
+'F.Intrinsic.Control.EndIf
+
+'F.Data.DataView.Close("ERNCODE","VTemp")
+
+'building file name
+F.Intrinsic.String.Format(V.Ambient.Now,"MMDDYY_HhNnSs",V.Local.sDateTime)
+F.Intrinsic.String.Build("{0}PayrollExport_{1}.csv",V.Global.sFileLocation,V.Local.sDateTime,V.Local.sFile)
+
+
+v.Local.sRET.Declare
+
+v.Local.sRET.Set("Case Earnings_Code When '' Then 'REGULAR' When '01' Then 'REGULAR' When '02' Then 'HOLIDAY' When '03' Then 'VACATION' When '04' Then 'SICK' When '05' Then 'BEREAVEMENT' When '06' Then 'SCHOOL VISIT' When '07' Then 'JURY DUTY' End As 'PCAT'")
+
+F.Intrinsic.String.Build("Select Date_In, Employee, {2}, left(Time_In,5) as Time_In, left(Time_Out,5) as  Time_Out From V_TIME_ATTENDANCE Where Date_In Between '{0}' and '{1}' Order by Date_In, Employee",v.Local.dStart.PervasiveDate,V.Local.dEnd.PervasiveDate,v.Local.sRET,V.Local.sSql)
+
+F.Data.DataTable.CreateFromSQL("Time","con",V.Local.sSql)
+
+
+F.Intrinsic.Control.If(V.DataTable.Time.RowCount,>,0)
+
+	f.Data.DataView.Create("Time","DVLines")
+	f.Data.DataView.ToString("Time","DVLines",",",v.Ambient.NewLine,v.Local.sRet)
+	f.Intrinsic.String.Replace(V.Local.sRet," 12:00:00 AM","",V.Local.sRet)
+	F.Intrinsic.File.String2File(V.Local.sFile,V.Local.sRet)
+	F.Intrinsic.Task.ShellExec(V.Caller.Handle,"",V.Local.sTemp,"","",1)
+	
+	f.Data.Dataview.Close("Time","DVLines")
+	f.Data.Datatable.Close("Time")
+	F.Intrinsic.Control.CallSub(Form_PY_Export_UnLoad)
+
+F.Intrinsic.Control.Else
+	F.Intrinsic.UI.CloseWaitDialog
+	F.Intrinsic.UI.Msgbox("No Time and Attendance Records for selected dates.........")
+	F.Data.DataTable.Close("Time")
+	Gui.Form_PY_Export..Show
+	Gui.Form_PY_Export..AlwaysOnTop(True)
+	Gui.Form_PY_Export..AlwaysOnTop(False)
+F.Intrinsic.Control.EndIf
+
+F.ODBC.Connection!Con.Close
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("cmdExport_Click_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.UI.CloseWaitDialog
+	F.Intrinsic.String.Build("Project: GCG_6368_Export.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_PY_Export_UnLoad)
+Function.Intrinsic.Control.EndIf
+Program.Sub.cmdExport_Click.End
+
+Program.Sub.Form_PY_Export_UnLoad.Start
+F.Intrinsic.Control.SetErrorHandler("Form_PY_Export_UnLoad_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+
+F.Intrinsic.Control.If(V.ODBC.Con.State,=,1)
+	F.ODBC.Connection!Con.Close
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Form_PY_Export_UnLoad_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+Program.Sub.Form_PY_Export_UnLoad.End
+
+Program.Sub.Create_Dir.Start
+F.Intrinsic.Control.SetErrorHandler("Create_Dir_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.bRet.Declare(Boolean,False)
+
+F.Intrinsic.Control.If(V.Caller.GlobalDir.Right1,=,"\")
+	F.Intrinsic.String.Build("{0}Custom\",V.Caller.GlobalDir,V.Global.sFileLocation)
+F.Intrinsic.Control.Else
+	F.Intrinsic.String.Build("{0}\Custom\",V.Caller.GlobalDir,V.Global.sFileLocation)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.File.DirExists(V.Global.sFileLocation,V.Local.bRet)
+
+F.Intrinsic.Control.If(V.Local.bRet,=,False)
+	F.Intrinsic.File.CreateDir(V.Global.sFileLocation)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.String.Build("{0}6368\",V.Global.sFileLocation,V.Global.sFileLocation)
+
+F.Intrinsic.File.DirExists(V.Global.sFileLocation,V.Local.bRet)
+
+F.Intrinsic.Control.If(V.Local.bRet,=,False)
+	F.Intrinsic.File.CreateDir(V.Global.sFileLocation)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Create_Dir_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6368_Export.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Form_PY_Export_UnLoad)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Create_Dir.End
+
+Program.Sub.Comments.Start
+${$5$}$2.0.0.0$}$2
+${$6$}$rnair$}$20210602235740807$}$JUGEdtlNdgRUPvge2DQ26bz/1piQWHOn5MC/OBxxpdUQit7Ylz5zH28flZg2ViehO6BopEH6AQI=
+Program.Sub.Comments.End
